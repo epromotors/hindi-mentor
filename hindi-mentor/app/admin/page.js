@@ -1,99 +1,111 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
-export default function AdminDashboard() {
-  const [file, setFile] = useState(null);
-  const [subject, setSubject] = useState("");
-  const [level, setLevel] = useState("BA");
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
+export default function HomePage() {
+  const [chapters, setChapters] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [level, setLevel] = useState("ALL");
+  const [search, setSearch] = useState("");
 
-  async function handleUpload(e) {
-    e.preventDefault();
-    if (!file || !subject) return;
-    setLoading(true);
-    setStatus("⏳ Upload हो रहा है...");
+  useEffect(() => {
+    fetch("/api/upload")
+      .then(r => r.json())
+      .then(data => {
+        setChapters(data.chapters || []);
+        setFiltered(data.chapters || []);
+      });
+  }, []);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("subject", subject);
-    formData.append("level", level);
-
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
-
-    setLoading(false);
-    if (data.success)
-      setStatus(`✅ ${data.count} Chapters successfully upload हो गए!`);
-    else
-      setStatus("❌ Error आई, फिर try करें");
-  }
+  useEffect(() => {
+    let result = chapters;
+    if (level !== "ALL") result = result.filter(c => c.level === level);
+    if (search) result = result.filter(c =>
+      c.title.toLowerCase().includes(search.toLowerCase()) ||
+      c.subject.toLowerCase().includes(search.toLowerCase())
+    );
+    setFiltered(result);
+  }, [level, search, chapters]);
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>📚 Admin Panel</h1>
-        <p style={styles.subtitle}>Hindi Mentor — Notes Upload करें</p>
+    <div style={styles.page}>
+      {/* Hero */}
+      <div style={styles.hero}>
+        <h1 style={styles.heroTitle}>📚 Hindi Mentor</h1>
+        <p style={styles.heroSub}>B.A. & M.A. छात्रों के लिए AI-powered हिंदी शिक्षक</p>
+      </div>
 
-        <form onSubmit={handleUpload} style={styles.form}>
-          <label style={styles.label}>Subject का नाम</label>
-          <input
-            type="text"
-            placeholder="जैसे: Hindi Sahitya, Sociology"
-            value={subject}
-            onChange={e => setSubject(e.target.value)}
-            style={styles.input}
-            required
-          />
+      {/* Filters */}
+      <div style={styles.filters}>
+        <input
+          placeholder="🔍 Subject या Chapter खोजें..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={styles.search}
+        />
+        <div style={styles.levelBtns}>
+          {["ALL", "BA", "MA"].map(l => (
+            <button key={l} onClick={() => setLevel(l)}
+              style={{ ...styles.levelBtn, background: level === l ? "#4f46e5" : "white", color: level === l ? "white" : "#374151" }}>
+              {l === "ALL" ? "सभी" : l}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <label style={styles.label}>Level</label>
-          <select
-            value={level}
-            onChange={e => setLevel(e.target.value)}
-            style={styles.input}
-          >
-            <option value="BA">B.A.</option>
-            <option value="MA">M.A.</option>
-          </select>
+      {/* Chapter Cards */}
+      {filtered.length === 0 ? (
+        <div style={styles.empty}>
+          <p>📭 अभी कोई Notes नहीं हैं।</p>
+          <a href="/admin" style={styles.uploadLink}>Admin Panel से Notes Upload करें →</a>
+        </div>
+      ) : (
+        <div style={styles.grid}>
+          {filtered.map(chapter => (
+            <a key={chapter.id} href={`/chapter/${chapter.id}`} style={styles.card}>
+              <div style={styles.cardTop}>
+                <span style={styles.badge}>{chapter.level}</span>
+                <span style={styles.subject}>{chapter.subject}</span>
+              </div>
+              <h3 style={styles.cardTitle}>{chapter.title}</h3>
+              <p style={styles.cardPreview}>
+                {chapter.content.substring(0, 100)}...
+              </p>
+              <div style={styles.cardFooter}>
+                <span>🧑‍🏫 Mentor से पूछें</span>
+                <span>📝 Quiz दें</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
 
-          <label style={styles.label}>Word File (.docx) Upload करें</label>
-          <input
-            type="file"
-            accept=".docx"
-            onChange={e => setFile(e.target.files[0])}
-            style={styles.fileInput}
-            required
-          />
-
-          <button type="submit" style={styles.btn} disabled={loading}>
-            {loading ? "⏳ Processing..." : "📤 Upload करें"}
-          </button>
-        </form>
-
-        {status && (
-          <div style={styles.status}>
-            <p>{status}</p>
-            {status.includes("✅") && (
-              <a href="/" style={styles.link}>🏠 Homepage देखें →</a>
-            )}
-          </div>
-        )}
+      {/* Admin Link */}
+      <div style={styles.adminBar}>
+        <a href="/admin" style={styles.adminLink}>🔐 Admin Panel</a>
       </div>
     </div>
   );
 }
 
 const styles = {
-  container: { minHeight:"100vh", background:"#f0f4ff", display:"flex", justifyContent:"center", alignItems:"center", padding:"20px" },
-  card: { background:"white", padding:"40px", borderRadius:"16px", boxShadow:"0 4px 20px rgba(0,0,0,0.1)", width:"100%", maxWidth:"480px" },
-  title: { margin:"0 0 5px", color:"#1e1b4b", fontSize:"24px" },
-  subtitle: { color:"#666", marginBottom:"30px" },
-  form: { display:"flex", flexDirection:"column", gap:"8px" },
-  label: { fontWeight:"600", color:"#374151", fontSize:"14px" },
-  input: { padding:"12px", borderRadius:"8px", border:"1px solid #ddd", fontSize:"15px", marginBottom:"10px" },
-  fileInput: { padding:"8px", border:"1px dashed #4f46e5", borderRadius:"8px", marginBottom:"10px", background:"#f5f3ff" },
-  btn: { padding:"14px", background:"#4f46e5", color:"white", border:"none", borderRadius:"8px", fontSize:"16px", cursor:"pointer", fontWeight:"600" },
-  status: { marginTop:"20px", padding:"16px", background:"#f0fdf4", borderRadius:"8px", textAlign:"center" },
-  link: { color:"#4f46e5", fontWeight:"600", textDecoration:"none" }
+  page: { maxWidth:"1000px", margin:"0 auto", padding:"20px", fontFamily:"sans-serif" },
+  hero: { textAlign:"center", padding:"50px 20px 30px", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", borderRadius:"20px", marginBottom:"30px", color:"white" },
+  heroTitle: { margin:"0 0 10px", fontSize:"36px" },
+  heroSub: { margin:0, fontSize:"16px", opacity:0.9 },
+  filters: { display:"flex", gap:"12px", marginBottom:"24px", flexWrap:"wrap", alignItems:"center" },
+  search: { flex:1, minWidth:"200px", padding:"12px 16px", borderRadius:"10px", border:"1px solid #ddd", fontSize:"15px" },
+  levelBtns: { display:"flex", gap:"8px" },
+  levelBtn: { padding:"10px 20px", border:"2px solid #4f46e5", borderRadius:"8px", cursor:"pointer", fontWeight:"600" },
+  grid: { display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:"20px" },
+  card: { background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e5e7eb", textDecoration:"none", color:"inherit", display:"block", transition:"transform 0.2s, box-shadow 0.2s", boxShadow:"0 2px 8px rgba(0,0,0,0.05)" },
+  cardTop: { display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" },
+  badge: { background:"#ede9fe", color:"#4f46e5", padding:"4px 10px", borderRadius:"20px", fontSize:"12px", fontWeight:"600" },
+  subject: { color:"#6b7280", fontSize:"13px" },
+  cardTitle: { margin:"0 0 8px", color:"#1e1b4b", fontSize:"17px" },
+  cardPreview: { color:"#9ca3af", fontSize:"13px", lineHeight:"1.5", margin:"0 0 16px" },
+  cardFooter: { display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#4f46e5", fontWeight:"600" },
+  empty: { textAlign:"center", padding:"60px", color:"#6b7280" },
+  uploadLink: { color:"#4f46e5", fontWeight:"600", textDecoration:"none", display:"block", marginTop:"10px" },
+  adminBar: { textAlign:"center", marginTop:"40px", paddingTop:"20px", borderTop:"1px solid #e5e7eb" },
+  adminLink: { color:"#9ca3af", fontSize:"13px", textDecoration:"none" }
 };
